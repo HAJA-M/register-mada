@@ -80,7 +80,7 @@ export function Feuille() {
 
       {ouverte && (
         <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-trait">
-          <div className="flex gap-2 overflow-x-auto px-4 py-2" role="group" aria-label="Segment">
+          <div className="flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none]" role="group" aria-label="Segment">
             {[{ cle: '', label: 'Tous' }, ...groupes].map((g) => (
               <button
                 key={g.cle}
@@ -99,15 +99,16 @@ export function Feuille() {
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Nom, surnom, adresse, repère"
+              placeholder="Rechercher"
               aria-label="Rechercher"
               className={`${champ} min-w-0 flex-1`}
+              enterKeyHint="search"
             />
             <select
               value={filtre}
               onChange={(e) => setFiltre(e.target.value as Filtre)}
               aria-label="Filtrer par statut"
-              className={champ}
+              className={`${champ} w-28`}
             >
               <option value="tous">Tous</option>
               <option value="reste">Reste à faire</option>

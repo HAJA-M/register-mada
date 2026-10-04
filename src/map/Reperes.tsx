@@ -6,7 +6,7 @@ import { useStore } from '../store'
 import type { Statut, Tokatrano } from '../types'
 
 // Place laissée au bas de l'écran par la feuille repliée, pour que le ménage choisi reste visible.
-const MARGE_BAS = 230
+const MARGE_BAS = 300
 
 // MapLibre positionne l'élément racine avec `transform` : la rotation de l'épingle
 // vit donc sur un enfant, jamais sur la racine.
