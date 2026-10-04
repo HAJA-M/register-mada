@@ -29,8 +29,10 @@ type State = {
   prefs: Prefs
   position: (Position & { precision: number }) | null
   derniere: Annulation | null
+  selection: string | null
   pret: boolean
 
+  selectionner: (id: string | null) => void
   hydrater: () => Promise<void>
   suiviDe: (id: string) => Suivi
   changerStatut: (id: string, statut: Statut) => Promise<void>
@@ -50,7 +52,10 @@ export const useStore = create<State>((set, get) => ({
   prefs: PREFS_DEFAUT,
   position: null,
   derniere: null,
+  selection: null,
   pret: false,
+
+  selectionner: (selection) => set({ selection }),
 
   async hydrater() {
     const [liste, prefs] = await Promise.all([lireSuivi(), lirePref('prefs', PREFS_DEFAUT)])

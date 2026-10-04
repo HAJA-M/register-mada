@@ -1,0 +1,53 @@
+/* Repères de la carte. Couleur par statut via les tokens du thème. */
+.repere {
+  --c: var(--color-todo);
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px 15px 15px 2px;
+  transform: rotate(-45deg);
+  background: var(--c);
+  border: 2px solid var(--color-nuit);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.55);
+  display: grid;
+  place-items: center;
+}
+.repere b {
+  transform: rotate(45deg);
+  font: 700 12px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-nuit);
+}
+.repere[data-statut='encours'] { --c: var(--color-encours); }
+.repere[data-statut='refus']   { --c: var(--color-refus); }
+.repere[data-statut='absent']  { --c: var(--color-absent); }
+
+.repere-fait {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-fait) 55%, transparent);
+  border: 1.5px solid var(--color-fait);
+}
+
+/* Mode plein soleil : aucune transparence. */
+.sun .repere-fait { background: var(--color-fait); border-color: var(--color-nuit); }
+
+.maplibregl-ctrl-top-left { margin-top: env(safe-area-inset-top); }
+
+/* Ménage choisi : épingle agrandie, liseré clair. */
+.repere.sel {
+  scale: 1.25;
+  border-color: var(--color-craie);
+  z-index: 1;
+}
+
+/* Position courante. */
+.moi {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-encours);
+  border: 3px solid var(--color-craie);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4), 0 1px 4px rgb(0 0 0 / 0.5);
+}

@@ -94,7 +94,9 @@ Reprendre à l'identique ce que fait `legacy/`, puis améliorer :
 6. Annulation du dernier changement de statut pendant cinq secondes, avec vibration courte
    à la validation.
 7. Position GPS en direct avec cercle de précision.
-8. Téléchargement de la zone pour le hors ligne, avec barre de progression.
+8. Téléchargement de la zone pour le hors ligne, avec barre de progression. L'emprise se
+   calcule par segment, pas sur l'ensemble des données : un enquêteur affecté à un seul
+   fokontany n'a pas à télécharger les quatre segments. Proposer aussi « tout télécharger ».
 9. Export JSON et CSV, import JSON avec fusion sur `maj` la plus récente.
 10. Mode plein soleil : contrastes renforcés, aucune transparence.
 
@@ -130,10 +132,16 @@ Respecter `prefers-reduced-motion` et `env(safe-area-inset-*)`.
 - **Une erreur de saisie coûte un déplacement.** Toute action destructive s'annule.
 - **Pas de perte de données.** Écriture dans Dexie avant tout retour visuel, et prévenir
   l'utilisateur si le quota de stockage est atteint.
-- Deux fiches de la grappe 08 segment S01 ont des coordonnées fausses, à environ 6 km
-  (précisions de 56 m et 100 m). Les exclure du calcul de l'emprise à télécharger et du
+- Deux fiches de la grappe 08 segment S01 ont des coordonnées fausses, à environ 6 km :
+  `RSU/0267/08/S01/2(2/2)` (RAKOTOBE MBOLA) et `RSU/0267/08/S01/3(1/1)`
+  (RAKOTOARIMANANA jean Pierre). Les exclure du calcul de l'emprise à télécharger et du
   cadrage automatique, mais les garder dans la liste.
-- Trois fiches n'ont pas de GPS : l'interface ne doit jamais supposer que `lat` existe.
+  Critère retenu : écart à la médiane des positions supérieur à 3 km. Ne pas filtrer sur
+  `precision`, ce qui écarterait des relevés légitimes simplement imprécis — quatre fiches
+  de la grappe 02 sont à 2,1 km de la médiane et sont parfaitement placées.
+- Deux fiches n'ont pas de GPS : l'interface ne doit jamais supposer que `lat` existe.
+  Une 78e entrée de `legacy/data.json` est entièrement vide (ni nom ni GPS) et doit être
+  écartée au chargement, comme le fait le prototype. D'où les 77 fiches utiles.
 
 ## Étapes proposées
 

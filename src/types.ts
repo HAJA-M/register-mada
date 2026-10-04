@@ -36,3 +36,11 @@ export type Suivi = {
 }
 
 export const estOuvert = (s: Statut) => s === 'todo' || s === 'encours'
+
+export const LIBELLES: Record<Statut, string> = {
+  todo: 'À faire',
+  encours: 'En cours',
+  fait: 'Terminé',
+  refus: 'Refus',
+  absent: 'Absent',
+}
