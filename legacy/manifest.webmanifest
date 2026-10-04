@@ -1,0 +1,17 @@
+{
+  "name": "Fanisana — suivi des tokatrano",
+  "short_name": "Fanisana",
+  "description": "Suivi de terrain des tokatrano dénombrés, Commune Ambohitrabiby (AE EQ_TANN_0267).",
+  "lang": "mg",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#10161c",
+  "theme_color": "#10161c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
