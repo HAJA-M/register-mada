@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import donnees from '../data/tokatrano.json'
 import type { Statut, Suivi, Tokatrano } from '../types'
 import {
-  compter, dansSegment, filtrer, plusProcheOuvert, segmentParDefaut, segments, trierParDistance, type SuiviParId,
+  compter, dansPortee, dansSegment, filtrer, fokontanys, nomFokontany, plusProcheOuvert, segmentParDefaut, segments,
+  trierParDistance, type SuiviParId,
 } from './liste'
 
 const base = donnees[0] as Tokatrano
@@ -102,5 +103,39 @@ describe('segmentParDefaut', () => {
   })
   it('revient sur « Tous » quand tout est traité', () => {
     expect(segmentParDefaut(m, toutFait(seg.map((g) => g.cle)))).toBe('')
+  })
+})
+
+describe('fokontany', () => {
+  const m = donnees as Tokatrano[]
+
+  it('lisible : sans code ni majuscules', () => {
+    expect(nomFokontany('ANTANAMBAO_11061608')).toBe('Antanambao')
+    expect(nomFokontany('AMBOHITRANTENAINA_11061605')).toBe('Ambohitrantenaina')
+  })
+  it('liste les 3 fokontany réels avec leur effectif', () => {
+    const f = fokontanys(m)
+    expect(f.map((x) => x.label)).toEqual(['Ambohitrantenaina', 'Antanambao', 'Ambatomitsangana'])
+    expect(f.map((x) => x.nb)).toEqual([21, 41, 15])
+    expect(f.reduce((n, x) => n + x.nb, 0)).toBe(m.length)
+  })
+  it('Antanambao regroupe deux segments', () => {
+    const antanambao = fokontanys(m)[1]!.cle
+    const segs = segments(dansPortee(m, { fokontany: antanambao, segment: '' }))
+    expect(segs.map((g) => g.label)).toEqual(['08/S01', '08/S02'])
+  })
+  it('dansPortee : aucune restriction, un fokontany, un segment, les deux', () => {
+    const [amb, ant] = fokontanys(m)
+    const segsAnt = segments(dansPortee(m, { fokontany: ant!.cle, segment: '' }))
+    expect(dansPortee(m, { fokontany: '', segment: '' })).toBe(m)
+    expect(dansPortee(m, { fokontany: amb!.cle, segment: '' })).toHaveLength(21)
+    expect(dansPortee(m, { fokontany: ant!.cle, segment: '' })).toHaveLength(41)
+    expect(dansPortee(m, { fokontany: ant!.cle, segment: segsAnt[1]!.cle })).toHaveLength(13)
+    expect(dansPortee(m, { fokontany: '', segment: segsAnt[1]!.cle })).toHaveLength(13)
+  })
+  it('un segment hors du fokontany choisi ne donne rien', () => {
+    const [amb] = fokontanys(m)
+    const autre = segments(m).find((g) => g.fokontany !== amb!.cle)!
+    expect(dansPortee(m, { fokontany: amb!.cle, segment: autre.cle })).toEqual([])
   })
 })

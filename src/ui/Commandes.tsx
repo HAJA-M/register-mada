@@ -73,6 +73,9 @@ export function Commandes() {
       >
         {icone(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5" /></>)}
       </Bouton>
+      <Bouton label="Réglages et mise à jour" onClick={() => ouvrirPanneau('reglages')}>
+        {icone(<><path d="M4 7h9M19 7h1M4 17h1M11 17h9" /><circle cx="16" cy="7" r="2.5" /><circle cx="8" cy="17" r="2.5" /></>)}
+      </Bouton>
       {erreur && (
         <p role="alert" className="max-w-56 rounded-[10px] border border-trait bg-ardoise px-3 py-2 text-sm">
           {erreur}

@@ -1,18 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { emprise } from '../lib/geo'
-import { dansSegment, segments } from '../lib/liste'
+import { dansSegment, nomFokontany, segments } from '../lib/liste'
 import { telecharger, type Progres, type Resultat } from '../lib/telechargement'
 import { CACHE_TUILES, listeTuiles, megaoctets, OCTETS_PAR_TUILE, unir } from '../lib/tuiles'
 import { useEnLigne } from '../lib/useEnLigne'
 import { useStore } from '../store'
+import { Modal } from './Modal'
 
 /** Marge autour des ménages, en degrés (≈ 450 m) : on voit un peu autour de la maison. */
 const MARGE = 0.004
-
-const nomFokontany = (f: string) => {
-  const n = f.split('_')[0]!.toLowerCase()
-  return n.charAt(0).toUpperCase() + n.slice(1)
-}
 
 const disponible = () => typeof caches !== 'undefined'
 
@@ -25,7 +21,6 @@ export function HorsLigne() {
 function Panneau() {
   const menages = useStore((s) => s.menages)
   const fond = useStore((s) => s.prefs.fond)
-  const fermer = useStore((s) => s.ouvrirPanneau)
   const enLigne = useEnLigne()
 
   const [cachees, setCachees] = useState<Set<string>>(new Set())
@@ -59,12 +54,6 @@ function Panneau() {
   useEffect(() => {
     void rafraichir()
   }, [rafraichir])
-
-  useEffect(() => {
-    const echap = (e: KeyboardEvent) => e.key === 'Escape' && !arret.current && fermer(null)
-    addEventListener('keydown', echap)
-    return () => removeEventListener('keydown', echap)
-  }, [fermer])
 
   const lancer = async (urls: string[]) => {
     if (!disponible() || enCours) return
@@ -103,34 +92,7 @@ function Panneau() {
   const taille = (nb: number) => megaoctets(nb * OCTETS_PAR_TUILE[fond])
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col justify-end">
-      <button
-        aria-label="Fermer"
-        onClick={() => !enCours && fermer(null)}
-        className="scrim absolute inset-0 cursor-default"
-        tabIndex={-1}
-      />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="Carte hors ligne"
-        className="anim-monter relative flex max-h-[88dvh] flex-col rounded-t-[14px] border-t border-trait bg-ardoise pb-[env(safe-area-inset-bottom)]"
-      >
-        <div className="flex items-center gap-2 px-4 pb-2 pt-4">
-          <h2 className="flex-1 text-xl font-bold">Carte hors ligne</h2>
-          <button
-            onClick={() => fermer(null)}
-            disabled={enCours}
-            aria-label="Fermer"
-            className="grid size-11 place-items-center rounded-[10px] border border-trait disabled:opacity-40"
-          >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4">
+    <Modal titre="Carte hors ligne" fermable={!enCours}>
           <p className="text-sm text-brume">
             Fond actuel : <b className="text-craie">{fond === 'sat' ? 'satellite' : 'plan'}</b>. Téléchargez en wifi, avant de
             partir : la carte s'affichera ensuite sans réseau. Le satellite et le plan sont deux jeux d'images distincts.
@@ -241,9 +203,7 @@ function Panneau() {
               {confirmerVidage ? 'Confirmer le vidage' : 'Vider la carte'}
             </button>
           </div>
-        </div>
-      </section>
-    </div>
+    </Modal>
   )
 }
 

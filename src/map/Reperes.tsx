@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { aUnGps, pointsFiables } from '../lib/geo'
-import { dansSegment, statutDe } from '../lib/liste'
+import { dansPortee, statutDe } from '../lib/liste'
 import { useStore } from '../store'
 import { margeBas, margeFeuille } from './marge'
 import type { Statut, Tokatrano } from '../types'
@@ -36,11 +36,12 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
   const menages = useStore((s) => s.menages)
   const suivi = useStore((s) => s.suivi)
   const segment = useStore((s) => s.prefs.segment)
+  const fokontany = useStore((s) => s.prefs.fokontany)
   const selection = useStore((s) => s.selection)
   const cadrage = useStore((s) => s.cadrage)
   const marqueurs = useRef(new Map<string, { mk: maplibregl.Marker; cle: string }>())
 
-  const visibles = dansSegment(menages, segment)
+  const visibles = dansPortee(menages, { fokontany, segment })
 
   useEffect(() => {
     const actuels = marqueurs.current
@@ -84,9 +85,12 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
     const conteneur = map.getContainer()
     const maj = () => conteneur.classList.toggle('zoom-bas', map.getZoom() < 15.5)
     maj()
+    // `moveend` : un cadrage sans animation (fitBounds) ne laisse pas toujours le bon zoom à l'événement `zoom`.
     map.on('zoom', maj)
+    map.on('moveend', maj)
     return () => {
       map.off('zoom', maj)
+      map.off('moveend', maj)
     }
   }, [map])
 
@@ -98,7 +102,7 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
     pts.forEach((p) => b.extend([p.lon, p.lat]))
     map.fitBounds(b, { padding: { top: 48, left: 48, right: 48, bottom: margeFeuille() }, animate: false, maxZoom: 18 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, segment, cadrage])
+  }, [map, fokontany, segment, cadrage])
 
   // Un ménage choisi dans le ruban ou la liste : on s'y rend (sans bouger si la fiche n'a pas de GPS).
   useEffect(() => {

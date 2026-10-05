@@ -5,6 +5,7 @@ import { Commandes } from './ui/Commandes'
 import { Feuille } from './ui/Feuille'
 import { Fiche } from './ui/Fiche'
 import { HorsLigne } from './ui/HorsLigne'
+import { Reglages } from './ui/Reglages'
 import { Toast } from './ui/Toast'
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
           <Feuille cachee={selection != null} />
           {selection != null && <Fiche key={selection} id={selection} />}
           <HorsLigne />
+          <Reglages />
           <Toast />
         </>
       )}

@@ -3,12 +3,13 @@ import donnees from './data/tokatrano.json'
 import {
   ecrirePref, ecrireSuivi, effacerSuivi, importerSuivi, lirePref, lireSuivi, supprimerSuivi,
 } from './db'
-import { segmentParDefaut } from './lib/liste'
+import { cleSegment, fokontanys, segmentParDefaut } from './lib/liste'
 import { lireImport } from './lib/merge'
 import type { Position } from './lib/geo'
 import type { Statut, Suivi, Tokatrano } from './types'
 
 export type Prefs = {
+  fokontany: string // clé de fokontany (ex. ANTANAMBAO_11061608) ou ''
   segment: string // "grappe|segment" ou ''
   fond: 'sat' | 'osm'
   tri: 'num' | 'dist'
@@ -17,7 +18,7 @@ export type Prefs = {
 }
 
 const PREFS_DEFAUT: Prefs = {
-  segment: '', fond: 'sat', tri: 'num', pleinSoleil: false, masquerFaits: false,
+  fokontany: '', segment: '', fond: 'sat', tri: 'num', pleinSoleil: false, masquerFaits: false,
 }
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10)
@@ -32,13 +33,13 @@ type State = {
   derniere: Annulation | null
   selection: string | null
   cadrage: number // incrémenté pour demander à la carte de recadrer tous les ménages
-  panneau: 'horsligne' | null
+  panneau: 'horsligne' | 'reglages' | null
   alerte: string | null
   pret: boolean
 
   selectionner: (id: string | null) => void
   recadrer: () => void
-  ouvrirPanneau: (p: 'horsligne' | null) => void
+  ouvrirPanneau: (p: 'horsligne' | 'reglages' | null) => void
   alerter: (message: string) => void
   fermerAlerte: () => void
   oublierAnnulation: () => void
@@ -50,6 +51,7 @@ type State = {
   importer: (json: unknown) => Promise<number>
   toutEffacer: () => Promise<void>
   definirPref: <K extends keyof Prefs>(cle: K, valeur: Prefs[K]) => Promise<void>
+  definirPrefs: (patch: Partial<Prefs>) => Promise<void>
   definirPosition: (p: State['position']) => void
 }
 
@@ -78,8 +80,14 @@ export const useStore = create<State>((set, get) => ({
     const [liste, stockees] = await Promise.all([lireSuivi(), lirePref<Partial<Prefs> | null>('prefs', null)])
     const suivi = Object.fromEntries(liste.map((s) => [s.id, s]))
     const prefs: Prefs = { ...PREFS_DEFAUT, ...stockees }
+    // Les données peuvent avoir changé depuis la dernière ouverture : un périmètre disparu ne doit pas laisser l'écran vide.
+    const menages = get().menages
+    if (prefs.fokontany && !fokontanys(menages).some((f) => f.cle === prefs.fokontany)) prefs.fokontany = ''
+    if (prefs.segment && !menages.some((m) => cleSegment(m) === prefs.segment)) prefs.segment = ''
     // Premier lancement : on ouvre le segment qui a encore du travail plutôt que les 77 d'un coup.
-    if (!stockees) prefs.segment = segmentParDefaut(get().menages, suivi)
+    if (!stockees) prefs.segment = segmentParDefaut(menages, suivi)
+    // Un segment implique son fokontany (les préférences d'une ancienne version n'en avaient pas).
+    if (prefs.segment) prefs.fokontany = menages.find((m) => cleSegment(m) === prefs.segment)?.fokontany ?? ''
     set({ suivi, prefs, pret: true })
   },
 
@@ -142,7 +150,12 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async definirPref(cle, valeur) {
-    const prefs = { ...get().prefs, [cle]: valeur }
+    await get().definirPrefs({ [cle]: valeur })
+  },
+
+  // Plusieurs préférences en une seule écriture (changer de fokontany peut aussi changer de segment).
+  async definirPrefs(patch) {
+    const prefs = { ...get().prefs, ...patch }
     await ecrirePref('prefs', prefs)
     set({ prefs })
   },

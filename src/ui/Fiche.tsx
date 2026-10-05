@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { aUnGps, distanceVers, formatDistance } from '../lib/geo'
-import { dansSegment, plusProcheOuvert } from '../lib/liste'
+import { dansPortee, plusProcheOuvert } from '../lib/liste'
 import { useStore } from '../store'
 import { LIBELLES, STATUTS, type Statut, type Tokatrano } from '../types'
 import { enregistrer, vibrer } from './enregistrer'
@@ -81,6 +81,7 @@ export function Fiche({ id }: { id: string }) {
   const menages = useStore((s) => s.menages)
   const toutSuivi = useStore((s) => s.suivi)
   const segment = useStore((s) => s.prefs.segment)
+  const fokontany = useStore((s) => s.prefs.fokontany)
   const changerStatut = useStore((s) => s.changerStatut)
   const modifier = useStore((s) => s.modifier)
   const selectionner = useStore((s) => s.selectionner)
@@ -95,7 +96,7 @@ export function Fiche({ id }: { id: string }) {
   if (!m) return null
   const statut: Statut = suivi?.statut ?? 'todo'
   const d = distanceVers(position, m)
-  const suivant = plusProcheOuvert(dansSegment(menages, segment), toutSuivi, position, id)
+  const suivant = plusProcheOuvert(dansPortee(menages, { fokontany, segment }), toutSuivi, position, id)
   const dSuivant = suivant ? distanceVers(position, suivant) : null
 
   const choisirStatut = async (s: Statut) => {
