@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { qualiteGps } from '../lib/geo'
 import { useGps } from '../lib/useGps'
 import { useStore } from '../store'
 import { enregistrer } from './enregistrer'
@@ -34,6 +35,23 @@ function Bouton({
   )
 }
 
+const POINT_QUALITE = { bonne: 'bg-fait', moyenne: 'bg-todo', faible: 'bg-refus' } as const
+const LIBELLE_QUALITE = { bonne: 'bonne', moyenne: 'moyenne', faible: 'faible' } as const
+
+/** Précision du GPS en mètres, avec un point de couleur : de la taille du cercle sur la carte, en chiffres. */
+function Fiabilite({ precision }: { precision: number }) {
+  const q = qualiteGps(precision)
+  return (
+    <p
+      className="flex min-h-8 items-center gap-2 rounded-full border border-trait bg-ardoise px-3 text-sm font-semibold shadow-md"
+      aria-label={`Précision du GPS : ${Math.round(precision)} mètres, ${LIBELLE_QUALITE[q]}`}
+    >
+      <i className={`size-2 rounded-full ${POINT_QUALITE[q]}`} aria-hidden="true" />
+      ±{Math.round(precision)} m
+    </p>
+  )
+}
+
 /** Colonne de boutons en haut à droite de la carte. */
 export function Commandes() {
   const { etat, erreur, basculer } = useGps()
@@ -41,6 +59,7 @@ export function Commandes() {
   const soleil = useStore((s) => s.prefs.pleinSoleil)
   const definirPref = useStore((s) => s.definirPref)
   const recadrer = useStore((s) => s.recadrer)
+  const position = useStore((s) => s.position)
   const ouvrirPanneau = useStore((s) => s.ouvrirPanneau)
 
   return (
@@ -54,6 +73,7 @@ export function Commandes() {
       >
         {icone(<><circle cx="12" cy="12" r="4" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></>)}
       </Bouton>
+      {position && <Fiabilite precision={position.precision} />}
       <Bouton label="Voir tous les ménages" onClick={recadrer}>
         {icone(<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />)}
       </Bouton>

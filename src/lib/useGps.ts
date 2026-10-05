@@ -9,7 +9,7 @@ export function useGps() {
   const [etat, setEtat] = useState<EtatGps>('off')
   const [erreur, setErreur] = useState('')
   const watch = useRef<number | null>(null)
-  const dernier = useRef<{ lat: number; lon: number; t: number } | null>(null)
+  const dernier = useRef<{ lat: number; lon: number; precision: number; t: number } | null>(null)
 
   const arreter = useCallback(() => {
     if (watch.current != null) navigator.geolocation.clearWatch(watch.current)
@@ -29,10 +29,14 @@ export function useGps() {
         const { latitude: lat, longitude: lon, accuracy: precision } = coords
         const d = dernier.current
         // On ignore les micro-variations : tout le tri et le « Suivant » se recalculent à chaque mise à jour.
-        if (d && distance(d.lat, d.lon, lat, lon) < 8 && Date.now() - d.t < 6000) return
-        dernier.current = { lat, lon, t: Date.now() }
+        // Un changement net de précision passe quand même : le cercle sur la carte doit refléter la réalité.
+        const stable =
+          d && distance(d.lat, d.lon, lat, lon) < 8 && Math.abs(d.precision - precision) < 5 && Date.now() - d.t < 6000
+        if (stable) return
+        dernier.current = { lat, lon, precision, t: Date.now() }
         const store = useStore.getState()
         store.definirPosition({ lat, lon, precision })
+        setErreur('')
         setEtat('on')
         if (premiere) {
           premiere = false
@@ -40,10 +44,17 @@ export function useGps() {
         }
       },
       (e) => {
-        setErreur(e.code === e.PERMISSION_DENIED ? 'Autorisez la position dans le navigateur.' : 'Position introuvable.')
-        arreter()
+        if (e.code === e.PERMISSION_DENIED) {
+          setErreur('Autorisez la position dans le navigateur.')
+          arreter()
+          return
+        }
+        // Signal perdu (sous un toit, dans un creux) : il revient souvent seul. On continue d'écouter plutôt que
+        // de tout couper ; la dernière position reste affichée, le bouton clignote pendant la recherche.
+        setErreur('Signal GPS perdu, recherche en cours…')
+        setEtat('attente')
       },
-      { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 },
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 30000 },
     )
   }, [arreter])
 

@@ -64,3 +64,29 @@ export function emprise(menages: Tokatrano[], marge = 0): Emprise | null {
     est: Math.max(...lons) + marge,
   }
 }
+
+/**
+ * Anneau de `pas` points à `rayon` mètres du centre (formule de la destination sur la sphère), refermé sur lui-même.
+ * Sert à dessiner le cercle de précision du GPS : un rayon en mètres reste juste à tous les niveaux de zoom.
+ */
+export function cercle(lon: number, lat: number, rayon: number, pas = 64): [number, number][] {
+  const d = rayon / R
+  const phi = lat * RAD
+  const lambda = lon * RAD
+  const anneau: [number, number][] = []
+  for (let i = 0; i < pas; i++) {
+    const cap = (2 * Math.PI * i) / pas
+    const phi2 = Math.asin(Math.sin(phi) * Math.cos(d) + Math.cos(phi) * Math.sin(d) * Math.cos(cap))
+    const lambda2 =
+      lambda + Math.atan2(Math.sin(cap) * Math.sin(d) * Math.cos(phi), Math.cos(d) - Math.sin(phi) * Math.sin(phi2))
+    anneau.push([lambda2 / RAD, phi2 / RAD])
+  }
+  anneau.push(anneau[0]!)
+  return anneau
+}
+
+export type QualiteGps = 'bonne' | 'moyenne' | 'faible'
+
+/** Seuils pratiques : 15 m suffit pour reconnaître une maison, au-delà de 50 m on cherche à l'aveugle. */
+export const qualiteGps = (precisionM: number): QualiteGps =>
+  precisionM <= 15 ? 'bonne' : precisionM <= 50 ? 'moyenne' : 'faible'

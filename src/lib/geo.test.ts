@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import donnees from '../data/tokatrano.json'
 import type { Tokatrano } from '../types'
-import { distance, distanceVers, emprise, formatDistance, pointsFiables } from './geo'
+import { cercle, distance, distanceVers, emprise, formatDistance, pointsFiables, qualiteGps } from './geo'
 
 const menages = donnees as Tokatrano[]
 
@@ -88,4 +88,34 @@ describe('emprise et cadrage', () => {
   it('renvoie null sans aucune fiche géolocalisée', () => {
     expect(emprise(menages.map((m) => ({ ...m, lat: null, lon: null })))).toBeNull()
   })
+})
+
+describe('cercle', () => {
+  it('forme un anneau fermé de pas + 1 points', () => {
+    const c = cercle(47.59, -18.8, 25, 32)
+    expect(c).toHaveLength(33)
+    expect(c[0]).toEqual(c[32])
+  })
+  it.each([5, 25, 150, 2000])('chaque point est à %s m du centre', (r) => {
+    for (const [lon, lat] of cercle(47.59, -18.8, r)) {
+      expect(Math.abs(distance(-18.8, 47.59, lat, lon) - r)).toBeLessThan(r * 0.002 + 0.01)
+    }
+  })
+  it('est centré : les points opposés sont symétriques autour du centre', () => {
+    const c = cercle(47.59, -18.8, 100, 4)
+    expect((c[0]![1] + c[2]![1]) / 2).toBeCloseTo(-18.8, 5)
+    expect((c[1]![0] + c[3]![0]) / 2).toBeCloseTo(47.59, 5)
+  })
+  it('un rayon nul donne un anneau réduit au centre', () => {
+    for (const [lon, lat] of cercle(47.59, -18.8, 0, 8)) {
+      expect(lon).toBeCloseTo(47.59, 9)
+      expect(lat).toBeCloseTo(-18.8, 9)
+    }
+  })
+})
+
+describe('qualiteGps', () => {
+  it.each([
+    [3, 'bonne'], [15, 'bonne'], [15.1, 'moyenne'], [50, 'moyenne'], [50.1, 'faible'], [800, 'faible'],
+  ])('%s m → %s', (p, q) => expect(qualiteGps(p)).toBe(q))
 })
