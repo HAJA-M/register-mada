@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import maplibregl, { type StyleSpecification } from 'maplibre-gl'
+import { MODELE_TUILES } from '../lib/tuiles'
+import { MODELE_ESRI, enregistrerTuilesEsri } from './tuilesEsri'
 
-export const SAT_TUILES =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-export const OSM_TUILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 
 export const styleRaster = (fond: 'sat' | 'osm'): StyleSpecification => ({
   version: 8,
   sources: {
     fond: {
       type: 'raster',
-      tiles: [fond === 'sat' ? SAT_TUILES : OSM_TUILES],
+      tiles: [fond === 'sat' ? MODELE_ESRI : MODELE_TUILES.osm],
       tileSize: 256,
-      maxzoom: 19,
+      maxzoom: 18, // au-delà, MapLibre agrandit la tuile z18 : ce que le hors ligne a téléchargé suffit
       attribution: fond === 'sat' ? 'Esri, Maxar, Earthstar Geographics' : 'OpenStreetMap',
     },
   },
@@ -29,6 +28,7 @@ export function useMap(
 
   useEffect(() => {
     if (!conteneur.current) return
+    enregistrerTuilesEsri()
     const m = new maplibregl.Map({
       container: conteneur.current,
       style: styleRaster(fondInitial.current),

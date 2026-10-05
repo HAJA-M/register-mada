@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useStore } from '../store'
+import { useMiseAJour } from '../pwa'
 import { LIBELLES } from '../types'
 import { enregistrer } from './enregistrer'
 
@@ -14,6 +15,7 @@ export function Toast() {
   const annuler = useStore((s) => s.annuler)
   const oublier = useStore((s) => s.oublierAnnulation)
   const fermerAlerte = useStore((s) => s.fermerAlerte)
+  const { disponible, appliquer } = useMiseAJour()
 
   useEffect(() => {
     if (!derniere) return
@@ -29,6 +31,14 @@ export function Toast() {
       className="pointer-events-none absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-20 flex flex-col gap-2"
       role="status"
     >
+      {disponible && (
+        <div className="pointer-events-auto flex items-center gap-3 rounded-[10px] border border-encours bg-ardoise p-2 pl-4 text-sm">
+          <span className="flex-1">Nouvelle version prête.</span>
+          <button onClick={appliquer} className="min-h-11 rounded-[10px] bg-encours px-4 font-bold text-nuit">
+            Recharger
+          </button>
+        </div>
+      )}
       {alerte && (
         <div role="alert" className="pointer-events-auto flex items-center gap-3 rounded-[10px] border border-refus bg-ardoise p-3 text-sm">
           <span className="flex-1">{alerte}</span>

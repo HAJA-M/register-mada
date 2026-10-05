@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useGps } from '../lib/useGps'
 import { useStore } from '../store'
 import { enregistrer } from './enregistrer'
+import { Reseau } from './Reseau'
 
 const icone = (children: ReactNode) => (
   <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -40,9 +41,11 @@ export function Commandes() {
   const soleil = useStore((s) => s.prefs.pleinSoleil)
   const definirPref = useStore((s) => s.definirPref)
   const recadrer = useStore((s) => s.recadrer)
+  const ouvrirPanneau = useStore((s) => s.ouvrirPanneau)
 
   return (
     <div className="absolute right-3 top-[calc(env(safe-area-inset-top)+12px)] flex flex-col items-end gap-2">
+      <Reseau />
       <Bouton
         label={etat === 'off' ? 'Afficher ma position' : 'Couper la position'}
         onClick={basculer}
@@ -59,6 +62,9 @@ export function Commandes() {
         onClick={() => void enregistrer(() => definirPref('fond', fond === 'sat' ? 'osm' : 'sat'))}
       >
         {icone(<><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></>)}
+      </Bouton>
+      <Bouton label="Carte hors ligne" onClick={() => ouvrirPanneau('horsligne')}>
+        {icone(<><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M5 19h14" /></>)}
       </Bouton>
       <Bouton
         label="Mode plein soleil"

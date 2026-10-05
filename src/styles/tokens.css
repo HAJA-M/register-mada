@@ -66,3 +66,7 @@
   from { transform: translateY(14px); opacity: 0; }
 }
 .anim-monter { animation: monter 170ms ease-out; }
+
+/* Voile derrière un panneau. En plein soleil : aucune transparence. */
+.scrim { background: rgb(0 0 0 / 0.55); }
+.sun .scrim { background: #000; }

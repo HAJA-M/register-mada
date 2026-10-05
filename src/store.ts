@@ -32,11 +32,13 @@ type State = {
   derniere: Annulation | null
   selection: string | null
   cadrage: number // incrémenté pour demander à la carte de recadrer tous les ménages
+  panneau: 'horsligne' | null
   alerte: string | null
   pret: boolean
 
   selectionner: (id: string | null) => void
   recadrer: () => void
+  ouvrirPanneau: (p: 'horsligne' | null) => void
   alerter: (message: string) => void
   fermerAlerte: () => void
   oublierAnnulation: () => void
@@ -61,11 +63,13 @@ export const useStore = create<State>((set, get) => ({
   derniere: null,
   selection: null,
   cadrage: 0,
+  panneau: null,
   alerte: null,
   pret: false,
 
   selectionner: (selection) => set({ selection }),
   recadrer: () => set((s) => ({ cadrage: s.cadrage + 1 })),
+  ouvrirPanneau: (panneau) => set({ panneau }),
   alerter: (alerte) => set({ alerte }),
   fermerAlerte: () => set({ alerte: null }),
   oublierAnnulation: () => set({ derniere: null }),
