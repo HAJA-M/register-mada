@@ -3,6 +3,7 @@ import donnees from './data/tokatrano.json'
 import {
   ecrirePref, ecrireSuivi, effacerSuivi, importerSuivi, lirePref, lireSuivi, supprimerSuivi,
 } from './db'
+import { segmentParDefaut } from './lib/liste'
 import { lireImport } from './lib/merge'
 import type { Position } from './lib/geo'
 import type { Statut, Suivi, Tokatrano } from './types'
@@ -30,9 +31,15 @@ type State = {
   position: (Position & { precision: number }) | null
   derniere: Annulation | null
   selection: string | null
+  cadrage: number // incrémenté pour demander à la carte de recadrer tous les ménages
+  alerte: string | null
   pret: boolean
 
   selectionner: (id: string | null) => void
+  recadrer: () => void
+  alerter: (message: string) => void
+  fermerAlerte: () => void
+  oublierAnnulation: () => void
   hydrater: () => Promise<void>
   suiviDe: (id: string) => Suivi
   changerStatut: (id: string, statut: Statut) => Promise<void>
@@ -53,17 +60,23 @@ export const useStore = create<State>((set, get) => ({
   position: null,
   derniere: null,
   selection: null,
+  cadrage: 0,
+  alerte: null,
   pret: false,
 
   selectionner: (selection) => set({ selection }),
+  recadrer: () => set((s) => ({ cadrage: s.cadrage + 1 })),
+  alerter: (alerte) => set({ alerte }),
+  fermerAlerte: () => set({ alerte: null }),
+  oublierAnnulation: () => set({ derniere: null }),
 
   async hydrater() {
-    const [liste, prefs] = await Promise.all([lireSuivi(), lirePref('prefs', PREFS_DEFAUT)])
-    set({
-      suivi: Object.fromEntries(liste.map((s) => [s.id, s])),
-      prefs: { ...PREFS_DEFAUT, ...prefs },
-      pret: true,
-    })
+    const [liste, stockees] = await Promise.all([lireSuivi(), lirePref<Partial<Prefs> | null>('prefs', null)])
+    const suivi = Object.fromEntries(liste.map((s) => [s.id, s]))
+    const prefs: Prefs = { ...PREFS_DEFAUT, ...stockees }
+    // Premier lancement : on ouvre le segment qui a encore du travail plutôt que les 77 d'un coup.
+    if (!stockees) prefs.segment = segmentParDefaut(get().menages, suivi)
+    set({ suivi, prefs, pret: true })
   },
 
   suiviDe: (id) => get().suivi[id] ?? vide(id),
@@ -88,15 +101,24 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ suivi: { ...s.suivi, [id]: suivant } }))
   },
 
+  // N'annule que le statut et la date : une note tapée entre-temps est conservée.
   async annuler() {
     const d = get().derniere
     if (!d) return
-    if (d.avant) await ecrireSuivi(d.avant)
-    else await supprimerSuivi(d.id)
+    const cur = get().suivi[d.id] ?? vide(d.id)
+    const restaure: Suivi = {
+      ...cur,
+      statut: d.avant?.statut ?? 'todo',
+      date: d.avant?.date ?? '',
+      maj: new Date().toISOString(),
+    }
+    const vaAuNeant = !d.avant && !restaure.note
+    if (vaAuNeant) await supprimerSuivi(d.id)
+    else await ecrireSuivi(restaure)
     set((s) => {
       const suivi = { ...s.suivi }
-      if (d.avant) suivi[d.id] = d.avant
-      else delete suivi[d.id]
+      if (vaAuNeant) delete suivi[d.id]
+      else suivi[d.id] = restaure
       return { suivi, derniere: null }
     })
   },

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useStore } from '../store'
+import { margeBas } from './marge'
 
 /** Point bleu de la position courante. Au premier relevé, la carte s'y centre. */
 export function MaPosition({ map }: { map: maplibregl.Map }) {
@@ -20,7 +21,7 @@ export function MaPosition({ map }: { map: maplibregl.Map }) {
       el.className = 'moi'
       racine.append(el)
       marqueur.current = new maplibregl.Marker({ element: racine }).setLngLat(lngLat).addTo(map)
-      map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), 17), padding: { bottom: 300, top: 0, left: 0, right: 0 } })
+      map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), 17), padding: { bottom: margeBas(), top: 0, left: 0, right: 0 } })
     } else {
       marqueur.current.setLngLat(lngLat)
     }

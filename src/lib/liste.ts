@@ -39,13 +39,19 @@ export function trierParDistance(menages: Tokatrano[], me: Position | null): Tok
     .map((x) => x.m)
 }
 
-/** Ménage ouvert (à faire / en cours) géolocalisé le plus proche ; le premier de la liste sans position. */
+/**
+ * Ménage ouvert (à faire / en cours) géolocalisé le plus proche ; le premier de la liste sans position.
+ * `sauf` écarte le ménage en cours de visite pour enchaîner sur le suivant.
+ */
 export function plusProcheOuvert(
   menages: Tokatrano[],
   suivi: SuiviParId,
   me: Position | null,
+  sauf?: string,
 ): Geolocalise | null {
-  const ouverts = menages.filter((m): m is Geolocalise => aUnGps(m) && estOuvert(statutDe(suivi, m.id)))
+  const ouverts = menages.filter(
+    (m): m is Geolocalise => m.id !== sauf && aUnGps(m) && estOuvert(statutDe(suivi, m.id)),
+  )
   if (!ouverts.length) return null
   if (!me) return ouverts[0]!
   return ouverts.reduce((best, m) =>
@@ -66,4 +72,10 @@ export function segments(menages: Tokatrano[]) {
     if (!vus.has(cle)) vus.set(cle, { cle, label: `${m.grappe.split('/').pop()}/${m.segment}`, fokontany: m.fokontany })
   }
   return [...vus.values()]
+}
+
+/** Premier segment qui a encore du travail ; « Tous » (chaîne vide) quand tout est traité. */
+export function segmentParDefaut(menages: Tokatrano[], suivi: SuiviParId): string {
+  const trouve = segments(menages).find((g) => compter(dansSegment(menages, g.cle), suivi).reste > 0)
+  return trouve?.cle ?? ''
 }

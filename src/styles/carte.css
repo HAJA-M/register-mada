@@ -1,19 +1,22 @@
-/* Repères de la carte. Couleur par statut via les tokens du thème. */
+/* Repères de la carte. Couleur par statut via les tokens du thème.
+   Épingle en SVG, pointe en bas au centre : `scale` part de la pointe, qui ne bouge jamais. */
 .repere {
   --c: var(--color-todo);
   position: relative;
   width: 30px;
-  height: 30px;
-  border-radius: 15px 15px 15px 2px;
-  transform: rotate(-45deg);
-  background: var(--c);
-  border: 2px solid var(--color-nuit);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.55);
+  height: 38px;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+  transition: scale 120ms ease-out;
+}
+.repere svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.repere path { fill: var(--c); stroke: var(--color-nuit); stroke-width: 2; }
+.repere b {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 29px;
   display: grid;
   place-items: center;
-}
-.repere b {
-  transform: rotate(45deg);
   font: 700 12px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--color-nuit);
@@ -21,6 +24,10 @@
 .repere[data-statut='encours'] { --c: var(--color-encours); }
 .repere[data-statut='refus']   { --c: var(--color-refus); }
 .repere[data-statut='absent']  { --c: var(--color-absent); }
+
+/* Dézoomé : épingles réduites sans numéro, pour que le quartier reste lisible. */
+.zoom-bas .repere:not(.sel) { scale: 0.6; }
+.zoom-bas .repere:not(.sel) b { display: none; }
 
 .repere-fait {
   width: 13px;
@@ -36,11 +43,9 @@
 .maplibregl-ctrl-top-left { margin-top: env(safe-area-inset-top); }
 
 /* Ménage choisi : épingle agrandie, liseré clair. */
-.repere.sel {
-  scale: 1.25;
-  border-color: var(--color-craie);
-  z-index: 1;
-}
+.repere.sel { scale: 1.3; z-index: 1; }
+.repere.sel path { stroke: var(--color-craie); }
+.sun .repere path { stroke-width: 3; }
 
 /* Position courante. */
 .moi {
@@ -51,3 +56,7 @@
   border: 3px solid var(--color-craie);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4), 0 1px 4px rgb(0 0 0 / 0.5);
 }
+
+/* Trait terminé du ruban : atténué, mais plein en mode plein soleil. */
+.tick-fait { opacity: 0.6; }
+.sun .tick-fait { opacity: 1; }

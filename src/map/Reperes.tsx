@@ -3,13 +3,13 @@ import maplibregl from 'maplibre-gl'
 import { aUnGps, pointsFiables } from '../lib/geo'
 import { dansSegment, statutDe } from '../lib/liste'
 import { useStore } from '../store'
+import { margeBas, margeFeuille } from './marge'
 import type { Statut, Tokatrano } from '../types'
 
-// Place laissée au bas de l'écran par la feuille repliée, pour que le ménage choisi reste visible.
-const MARGE_BAS = 300
+// MapLibre positionne l'élément racine avec `transform` : le style de l'épingle vit
+// donc sur un enfant, jamais sur la racine.
+const PIN = '<svg viewBox="0 0 30 38" aria-hidden="true"><path d="M15 36.5C15 36.5 1.5 23.5 1.5 14.5a13.5 13.5 0 0 1 27 0c0 9-13.5 22-13.5 22z"/></svg>'
 
-// MapLibre positionne l'élément racine avec `transform` : la rotation de l'épingle
-// vit donc sur un enfant, jamais sur la racine.
 function creerElement(m: Tokatrano, statut: Statut, choisi: boolean): HTMLElement {
   const racine = document.createElement('div')
   const el = document.createElement('div')
@@ -18,12 +18,15 @@ function creerElement(m: Tokatrano, statut: Statut, choisi: boolean): HTMLElemen
     el.className = 'repere-fait'
   } else {
     el.className = choisi ? 'repere sel' : 'repere'
+    el.innerHTML = PIN
     const n = document.createElement('b')
     n.textContent = m.no
     el.append(n)
   }
   racine.setAttribute('role', 'img')
   racine.setAttribute('aria-label', `${m.no} ${m.chef || m.surnom || ''}`.trim())
+  racine.style.cursor = 'pointer'
+  racine.addEventListener('click', () => useStore.getState().selectionner(m.id))
   racine.append(el)
   return racine
 }
@@ -34,6 +37,7 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
   const suivi = useStore((s) => s.suivi)
   const segment = useStore((s) => s.prefs.segment)
   const selection = useStore((s) => s.selection)
+  const cadrage = useStore((s) => s.cadrage)
   const marqueurs = useRef(new Map<string, { mk: maplibregl.Marker; cle: string }>())
 
   const visibles = dansSegment(menages, segment)
@@ -53,9 +57,7 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
       const petit = statut === 'fait' && !choisi
       const mk = new maplibregl.Marker({
         element: creerElement(m, statut, choisi),
-        anchor: 'center',
-        // la pointe de l'épingle tournée est à ~21 px sous le centre du carré de 30 px
-        offset: petit ? [0, 0] : [0, -21],
+        anchor: petit ? 'center' : 'bottom',
       })
         .setLngLat([m.lon, m.lat])
         .addTo(map)
@@ -77,15 +79,26 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
     }
   }, [map])
 
+  // Dézoomé, les épingles se réduisent (voir carte.css).
+  useEffect(() => {
+    const conteneur = map.getContainer()
+    const maj = () => conteneur.classList.toggle('zoom-bas', map.getZoom() < 15.5)
+    maj()
+    map.on('zoom', maj)
+    return () => {
+      map.off('zoom', maj)
+    }
+  }, [map])
+
   // Cadrage : on exclut les relevés aberrants (voir pointsFiables).
   useEffect(() => {
     const pts = pointsFiables(visibles)
     if (!pts.length) return
     const b = new maplibregl.LngLatBounds()
     pts.forEach((p) => b.extend([p.lon, p.lat]))
-    map.fitBounds(b, { padding: { top: 48, left: 48, right: 48, bottom: MARGE_BAS }, animate: false, maxZoom: 18 })
+    map.fitBounds(b, { padding: { top: 48, left: 48, right: 48, bottom: margeFeuille() }, animate: false, maxZoom: 18 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, segment])
+  }, [map, segment, cadrage])
 
   // Un ménage choisi dans le ruban ou la liste : on s'y rend (sans bouger si la fiche n'a pas de GPS).
   useEffect(() => {
@@ -94,7 +107,7 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
     map.easeTo({
       center: [m.lon, m.lat],
       zoom: Math.max(map.getZoom(), 17),
-      padding: { top: 0, left: 0, right: 0, bottom: MARGE_BAS },
+      padding: { top: 0, left: 0, right: 0, bottom: margeBas() },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, selection])

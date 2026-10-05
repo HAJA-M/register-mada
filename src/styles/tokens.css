@@ -38,3 +38,31 @@
     }
   }
 }
+
+/* Interactions : retour au toucher, focus visible, pas de zoom au double tap. */
+@layer base {
+  button, a, select, input, textarea, summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled), a { cursor: pointer; }
+  button:active:not(:disabled), a:active { filter: brightness(0.88); }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible {
+    outline: 2px solid var(--color-encours);
+    outline-offset: 2px;
+  }
+}
+
+/* Mode plein soleil : contrastes renforcés, texte secondaire plus clair, traits plus marqués. */
+.sun {
+  --color-nuit: #000000;
+  --color-ardoise: #0A0F14;
+  --color-trait: #5B6C7B;
+  --color-brume: #D5DFE7;
+}
+
+@keyframes monter {
+  from { transform: translateY(14px); opacity: 0; }
+}
+.anim-monter { animation: monter 170ms ease-out; }

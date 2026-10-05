@@ -2,7 +2,14 @@ import { statutDe, type SuiviParId } from '../lib/liste'
 import { LIBELLES, type Tokatrano } from '../types'
 import { FOND } from './statuts'
 
-/** Un trait par ménage, dans l'ordre des numéros. Le bouton fait 36 px de haut, le trait 24 (77 traits de 10 px sur 360 px : la règle des 44 px est intenable ici, le filtre par segment ramène le ruban à une rangée). */
+// Au-delà, les traits ne tiennent plus sur une rangée de 340 px sans devenir trop étroits.
+const UNE_RANGEE = 28
+
+/**
+ * Un trait par ménage, dans l'ordre des numéros.
+ * Un segment tient sur une rangée (traits de 44 px de haut, larges comme la place le permet).
+ * « Tous » (77 traits) passe sur trois rangées plus serrées : la règle des 44 px n'y est pas tenable.
+ */
 export function Ruban({
   menages, suivi, selection, onChoisir,
 }: {
@@ -11,8 +18,9 @@ export function Ruban({
   selection: string | null
   onChoisir: (id: string) => void
 }) {
+  const serre = menages.length > UNE_RANGEE
   return (
-    <div className="flex flex-wrap gap-x-0.5 px-4" role="list" aria-label="Ruban de pointage">
+    <div className={`flex px-4 ${serre ? 'flex-wrap gap-x-0.5' : 'gap-0.5'}`} role="list" aria-label="Ruban de pointage">
       {menages.map((m) => {
         const st = statutDe(suivi, m.id)
         const label = `${m.no} · ${m.chef || m.surnom || 'sans nom'} · ${LIBELLES[st]}`
@@ -24,12 +32,12 @@ export function Ruban({
             aria-label={label}
             aria-current={m.id === selection}
             onClick={() => onChoisir(m.id)}
-            className="grid h-9 w-2.5 place-items-center"
+            className={`grid place-items-center ${serre ? 'h-9 w-2.5' : 'h-11 max-w-5 flex-1'}`}
           >
             <span
-              className={`block h-6 w-full rounded-[2px] ${FOND[st]} ${
+              className={`block w-full rounded-[3px] ${serre ? 'h-6' : 'h-8'} ${FOND[st]} ${
                 m.id === selection ? 'outline-2 outline-offset-1 outline-craie' : ''
-              }`}
+              } ${st === 'fait' ? 'tick-fait' : ''}`}
             />
           </button>
         )

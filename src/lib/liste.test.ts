@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import donnees from '../data/tokatrano.json'
 import type { Statut, Suivi, Tokatrano } from '../types'
 import {
-  compter, dansSegment, filtrer, plusProcheOuvert, segments, trierParDistance, type SuiviParId,
+  compter, dansSegment, filtrer, plusProcheOuvert, segmentParDefaut, segments, trierParDistance, type SuiviParId,
 } from './liste'
 
 const base = donnees[0] as Tokatrano
@@ -64,6 +64,10 @@ describe('plusProcheOuvert', () => {
   it('un ménage en cours reste candidat', () => {
     expect(plusProcheOuvert(tous, suivi({ c: 'encours' }), me)).toBe(c)
   })
+  it('`sauf` écarte le ménage en cours de visite', () => {
+    expect(plusProcheOuvert(tous, {}, me, 'c')).toBe(b)
+    expect(plusProcheOuvert([a], {}, me, 'a')).toBeNull()
+  })
   it('renvoie null quand tout est traité', () => {
     expect(plusProcheOuvert(tous, suivi({ a: 'fait', b: 'fait', c: 'absent' }), me)).toBeNull()
   })
@@ -81,5 +85,22 @@ describe('compter, segments', () => {
     expect(seg).toHaveLength(4)
     expect(dansSegment(m, seg[0]!.cle).length).toBeGreaterThan(0)
     expect(dansSegment(m, '')).toBe(m)
+  })
+})
+
+describe('segmentParDefaut', () => {
+  const m = donnees as Tokatrano[]
+  const seg = segments(m)
+  const toutFait = (cles: string[]) =>
+    suivi(Object.fromEntries(dansSegment(m, '').filter((x) => cles.includes(`${x.grappe}|${x.segment}`)).map((x) => [x.id, 'fait' as Statut])))
+
+  it('prend le premier segment avec du travail', () => {
+    expect(segmentParDefaut(m, {})).toBe(seg[0]!.cle)
+  })
+  it('saute les segments terminés', () => {
+    expect(segmentParDefaut(m, toutFait([seg[0]!.cle]))).toBe(seg[1]!.cle)
+  })
+  it('revient sur « Tous » quand tout est traité', () => {
+    expect(segmentParDefaut(m, toutFait(seg.map((g) => g.cle)))).toBe('')
   })
 })
