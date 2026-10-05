@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import donnees from './data/tokatrano.json'
 import {
-  ecrirePref, ecrireSuivi, effacerSuivi, importerSuivi, lirePref, lireSuivi, supprimerSuivi,
+  appliquerPlan, ecrirePref, ecrireSuivi, effacerSuivi, importerSuivi, lirePref, lireSuivi, supprimerSuivi,
 } from './db'
 import { cleSegment, fokontanys, segmentParDefaut } from './lib/liste'
-import { lireImport } from './lib/merge'
+import { lireImportDetail } from './lib/merge'
+import { planAnnulation, type Instantane } from './lib/restauration'
 import type { Position } from './lib/geo'
 import type { Statut, Suivi, Tokatrano } from './types'
 
@@ -15,15 +16,27 @@ export type Prefs = {
   tri: 'num' | 'dist'
   pleinSoleil: boolean
   masquerFaits: boolean
+  sauvegarde: string // ISO de la dernière sauvegarde exportée, ou ''
 }
 
 const PREFS_DEFAUT: Prefs = {
-  fokontany: '', segment: '', fond: 'sat', tri: 'num', pleinSoleil: false, masquerFaits: false,
+  fokontany: '', segment: '', fond: 'sat', tri: 'num', pleinSoleil: false, masquerFaits: false, sauvegarde: '',
 }
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10)
 
 type Annulation = { id: string; avant: Suivi | null }
+
+/** Ce qu'il faut pour défaire un import ou un effacement tant que l'application reste ouverte. */
+type Restauration = { libelle: string; avant: Instantane; apres: Instantane }
+
+export type RapportImport = {
+  lues: number // fiches distinctes dans le fichier
+  misesAJour: number
+  inchangees: number // le local était aussi récent, ou plus
+  ignorees: number // entrées illisibles
+  inconnues: number // sans ménage correspondant dans les données actuelles (conservées)
+}
 
 type State = {
   menages: Tokatrano[] // lecture seule, jamais écrit en base
@@ -31,6 +44,7 @@ type State = {
   prefs: Prefs
   position: (Position & { precision: number }) | null
   derniere: Annulation | null
+  restauration: Restauration | null
   selection: string | null
   cadrage: number // incrémenté pour demander à la carte de recadrer tous les ménages
   panneau: 'horsligne' | 'reglages' | null
@@ -48,8 +62,10 @@ type State = {
   changerStatut: (id: string, statut: Statut) => Promise<void>
   modifier: (id: string, patch: Partial<Pick<Suivi, 'date' | 'note'>>) => Promise<void>
   annuler: () => Promise<void>
-  importer: (json: unknown) => Promise<number>
+  importerFichier: (json: unknown) => Promise<RapportImport>
   toutEffacer: () => Promise<void>
+  annulerRestauration: () => Promise<{ rendues: number; conservees: number }>
+  marquerSauvegarde: () => Promise<void>
   definirPref: <K extends keyof Prefs>(cle: K, valeur: Prefs[K]) => Promise<void>
   definirPrefs: (patch: Partial<Prefs>) => Promise<void>
   definirPosition: (p: State['position']) => void
@@ -63,6 +79,7 @@ export const useStore = create<State>((set, get) => ({
   prefs: PREFS_DEFAUT,
   position: null,
   derniere: null,
+  restauration: null,
   selection: null,
   cadrage: 0,
   panneau: null,
@@ -135,18 +152,64 @@ export const useStore = create<State>((set, get) => ({
     })
   },
 
-  async importer(json) {
-    const ecrites = await importerSuivi(lireImport(json))
+  async importerFichier(json) {
+    const { valides, ignorees } = lireImportDetail(json)
+    const { ecrites, avant } = await importerSuivi(valides)
+    const ids = new Set(valides.map((v) => v.id))
+    const connus = new Set(get().menages.map((m) => m.id))
     set((s) => ({
       suivi: { ...s.suivi, ...Object.fromEntries(ecrites.map((e) => [e.id, e])) },
       derniere: null,
+      restauration: ecrites.length
+        ? {
+            libelle: `Import : ${ecrites.length} fiche${ecrites.length > 1 ? 's' : ''} mise${ecrites.length > 1 ? 's' : ''} à jour`,
+            avant,
+            apres: new Map(ecrites.map((e) => [e.id, e])),
+          }
+        : s.restauration,
     }))
-    return ecrites.length
+    return {
+      lues: ids.size,
+      misesAJour: ecrites.length,
+      inchangees: ids.size - ecrites.length,
+      ignorees,
+      // Conservées quand même : la progression est rattachée au code du ménage, pas à sa présence dans le fichier de données.
+      inconnues: [...ids].filter((id) => !connus.has(id)).length,
+    }
   },
 
   async toutEffacer() {
+    const tous = await lireSuivi()
     await effacerSuivi()
-    set({ suivi: {}, derniere: null })
+    set({
+      suivi: {},
+      derniere: null,
+      restauration: tous.length
+        ? {
+            libelle: 'Progression effacée',
+            avant: new Map(tous.map((s) => [s.id, s])),
+            apres: new Map(tous.map((s) => [s.id, null])),
+          }
+        : null,
+    })
+  },
+
+  async annulerRestauration() {
+    const r = get().restauration
+    if (!r) return { rendues: 0, conservees: 0 }
+    const plan = planAnnulation(get().suivi, r.avant, r.apres)
+    await appliquerPlan(plan.aEcrire, plan.aSupprimer)
+    set((s) => {
+      const suivi = { ...s.suivi }
+      for (const e of plan.aEcrire) suivi[e.id] = e
+      for (const id of plan.aSupprimer) delete suivi[id]
+      return { suivi, restauration: null, derniere: null }
+    })
+    return { rendues: plan.aEcrire.length + plan.aSupprimer.length, conservees: plan.conservees }
+  },
+
+  async marquerSauvegarde() {
+    await get().definirPref('sauvegarde', new Date().toISOString())
   },
 
   async definirPref(cle, valeur) {

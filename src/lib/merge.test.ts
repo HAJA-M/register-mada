@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db, importerSuivi } from '../db'
 import type { Suivi } from '../types'
-import { fusionner, lireImport } from './merge'
+import { fusionner, lireImport, lireImportDetail } from './merge'
 
 const s = (id: string, statut: Suivi['statut'], maj: string, note = ''): Suivi => ({
   id, statut, date: '', note, maj,
@@ -51,6 +51,36 @@ describe('fusionner', () => {
   })
 })
 
+describe('fusion : comparer des instants, pas du texte', () => {
+  it('« 10:00+03:00 » (07:00 UTC) est plus ancien que « 08:00Z », même si le texte est plus grand', () => {
+    const local = s('a', 'fait', '2026-01-01T08:00:00Z')
+    expect(fusionner([local], [s('a', 'refus', '2026-01-01T10:00:00+03:00')])).toEqual([])
+  })
+  it('« 09:00+01:00 » (08:00 UTC) égale « 08:00Z » : le local est gardé', () => {
+    expect(fusionner([s('a', 'fait', '2026-01-01T08:00:00Z')], [s('a', 'refus', '2026-01-01T09:00:00+01:00')])).toEqual([])
+  })
+  it("une maj illisible côté local laisse gagner l'entrante", () => {
+    expect(fusionner([s('a', 'todo', 'hier')], [s('a', 'fait', '2026-01-01T00:00:00Z')])).toHaveLength(1)
+  })
+  it('une maj illisible côté entrant ne remplace pas une fiche locale datée', () => {
+    expect(fusionner([s('a', 'fait', '2026-01-01T00:00:00Z')], [s('a', 'todo', 'demain')])).toEqual([])
+  })
+})
+
+describe('lireImportDetail', () => {
+  it('compte les entrées ignorées au lieu de les perdre en silence', () => {
+    const r = lireImportDetail({ suivi: { a: { statut: 'fait' }, b: { statut: 'bizarre' }, c: null, d: 'x', e: { statut: 'refus' } } })
+    expect(r.valides.map((x) => x.id)).toEqual(['a', 'e'])
+    expect(r.ignorees).toBe(3)
+  })
+  it('relit un export de cette application (tableau) sans perte', () => {
+    const fiches = [s('a', 'fait', '2026-01-01T00:00:00Z', 'ok'), s('b', 'refus', '2026-01-02T00:00:00Z')]
+    const r = lireImportDetail(JSON.parse(JSON.stringify({ app: 'fanisana', version: 1, suivi: fiches })))
+    expect(r.valides).toEqual(fiches)
+    expect(r.ignorees).toBe(0)
+  })
+})
+
 describe('lireImport', () => {
   it('lit le dictionnaire du prototype (id = clé, maj parfois absente)', () => {
     const r = lireImport({
@@ -93,12 +123,14 @@ describe('importerSuivi (Dexie)', () => {
       s('b', 'todo', '2026-01-01T00:00:00Z'),
       s('c', 'encours', '2026-01-01T00:00:00Z'),
     ])
-    const ecrites = await importerSuivi([
+    const { ecrites, avant } = await importerSuivi([
       s('a', 'refus', '2026-01-01T00:00:00Z', 'ancien'),
       s('b', 'fait', '2026-01-02T00:00:00Z'),
       s('d', 'absent', '2026-01-02T00:00:00Z'),
     ])
     expect(ecrites.map((x) => x.id).sort()).toEqual(['b', 'd'])
+    expect(avant.get('b')?.statut).toBe('todo')
+    expect(avant.get('d')).toBeNull()
     const tout = Object.fromEntries((await db.suivi.toArray()).map((x) => [x.id, x]))
     expect(tout.a!.note).toBe('local')
     expect(tout.b!.statut).toBe('fait')

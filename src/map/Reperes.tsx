@@ -37,6 +37,7 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
   const suivi = useStore((s) => s.suivi)
   const segment = useStore((s) => s.prefs.segment)
   const fokontany = useStore((s) => s.prefs.fokontany)
+  const masquerFaits = useStore((s) => s.prefs.masquerFaits)
   const selection = useStore((s) => s.selection)
   const cadrage = useStore((s) => s.cadrage)
   const marqueurs = useRef(new Map<string, { mk: maplibregl.Marker; cle: string }>())
@@ -48,9 +49,11 @@ export function Reperes({ map }: { map: maplibregl.Map }) {
     const voulus = new Set<string>()
     for (const m of visibles) {
       if (!aUnGps(m)) continue
-      voulus.add(m.id)
       const statut = statutDe(suivi, m.id)
       const choisi = m.id === selection
+      // Absent de `voulus` : la boucle de nettoyage plus bas retire le repère déjà posé.
+      if (masquerFaits && statut === 'fait' && !choisi) continue
+      voulus.add(m.id)
       const cle = `${statut}${choisi ? '*' : ''}`
       const existant = actuels.get(m.id)
       if (existant?.cle === cle) continue

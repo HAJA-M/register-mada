@@ -3,6 +3,8 @@ import type { Verification } from '../lib/miseAJour'
 import { forcerRechargement, useMiseAJour, verifierMiseAJour } from '../pwa'
 import { useStore } from '../store'
 import { Modal } from './Modal'
+import { ReglagesAffichage } from './ReglagesAffichage'
+import { ReglagesDonnees } from './ReglagesDonnees'
 
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
 const heure = new Intl.DateTimeFormat('fr-FR', { timeStyle: 'short' })
@@ -108,6 +110,8 @@ function Panneau() {
           </div>
         </details>
       </section>
+      <ReglagesDonnees />
+      <ReglagesAffichage />
     </Modal>
   )
 }
