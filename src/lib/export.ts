@@ -1,8 +1,27 @@
-import { LIBELLES, type Suivi, type Tokatrano } from '../types'
+import { LIBELLES, type Localisation, type Suivi, type Tokatrano } from '../types'
 
-/** Contenu du fichier de sauvegarde. `lireImport` relit ce format, et celui du prototype. */
-export const versJson = (suivi: Suivi[], maintenant = new Date()) =>
-  JSON.stringify({ app: 'fanisana', version: 1, exporte: maintenant.toISOString(), suivi }, null, 1)
+/**
+ * Contenu du fichier de sauvegarde. `lireImport` relit ce format, et celui du prototype.
+ * Les ménages ajoutés et les positions relevées voyagent avec le suivi : sans eux, une réinstallation
+ * rendrait des statuts orphelins et ferait refaire le tour des maisons.
+ */
+export const versJson = (
+  suivi: Suivi[],
+  maintenant = new Date(),
+  { ajouts = [], localisations = [] }: { ajouts?: Tokatrano[]; localisations?: Localisation[] } = {},
+) =>
+  JSON.stringify(
+    {
+      app: 'fanisana',
+      version: 1,
+      exporte: maintenant.toISOString(),
+      suivi,
+      ...(ajouts.length ? { ajouts } : {}),
+      ...(localisations.length ? { localisations } : {}),
+    },
+    null,
+    1,
+  )
 
 // Un tableur interprète « =… », « +… », « -… », « @… » comme une formule : on neutralise les textes saisis.
 const FORMULE = /^[=+\-@\t\r]/

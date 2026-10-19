@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import donnees from './data/tokatrano.json'
 import {
-  appliquerPlan, ecrirePref, ecrireSuivi, effacerSuivi, importerSuivi, lirePref, lireSuivi, supprimerSuivi,
+  appliquerPlan, ecrireAjouts, ecrireLocalisation, ecrirePref, ecrireSuivi, effacerSuivi, importerLocalisations,
+  importerSuivi, lireAjouts, lireLocalisationsDb, lirePref, lireSuivi, supprimerLocalisation, supprimerSuivi,
 } from './db'
+import {
+  appliquerLocalisations, estListeMenages, lireAjoutsSauvegarde, lireListeMenages, lireLocalisations,
+} from './lib/ajouts'
 import { cleSegment, fokontanys, segmentParDefaut } from './lib/liste'
 import { lireImportDetail } from './lib/merge'
 import { planAnnulation, type Instantane } from './lib/restauration'
 import type { Position } from './lib/geo'
-import type { Statut, Suivi, Tokatrano } from './types'
+import type { Localisation, Statut, Suivi, Tokatrano } from './types'
 
 export type Prefs = {
   fokontany: string // clé de fokontany (ex. ANTANAMBAO_11061608) ou ''
@@ -36,10 +40,28 @@ export type RapportImport = {
   inchangees: number // le local était aussi récent, ou plus
   ignorees: number // entrées illisibles
   inconnues: number // sans ménage correspondant dans les données actuelles (conservées)
+  positions?: number // positions relevées reprises de la sauvegarde
 }
 
+export type RapportListe = {
+  type: 'liste'
+  fokontany: string // clé du fokontany importé
+  ajoutes: number
+  misAJour: number // déjà présents, remplacés par la version du fichier
+  ignorees: number
+}
+
+const BASE = (donnees as Tokatrano[])
+
+/** Ce que voient tous les écrans : dénombrement + ménages ajoutés, avec les positions relevées appliquées. */
+const composer = (ajouts: Tokatrano[], locs: Record<string, Localisation>) =>
+  appliquerLocalisations(ajouts.length ? [...BASE, ...ajouts] : BASE, locs)
+
 type State = {
-  menages: Tokatrano[] // lecture seule, jamais écrit en base
+  menages: Tokatrano[] // dénombrement + ajouts, positions relevées appliquées ; `tokatrano.json` n'est jamais écrit
+  ajouts: Tokatrano[]
+  localisations: Record<string, Localisation>
+  derniereLoc: { id: string; avant: Localisation | null } | null
   suivi: Record<string, Suivi>
   prefs: Prefs
   position: (Position & { precision: number }) | null
@@ -62,7 +84,10 @@ type State = {
   changerStatut: (id: string, statut: Statut) => Promise<void>
   modifier: (id: string, patch: Partial<Pick<Suivi, 'date' | 'note'>>) => Promise<void>
   annuler: () => Promise<void>
-  importerFichier: (json: unknown) => Promise<RapportImport>
+  importerFichier: (json: unknown) => Promise<RapportImport | RapportListe>
+  importerListe: (json: unknown) => Promise<RapportListe>
+  localiser: (id: string, p: { lat: number; lon: number; precision: number | null }) => Promise<void>
+  annulerLocalisation: () => Promise<void>
   toutEffacer: () => Promise<void>
   annulerRestauration: () => Promise<{ rendues: number; conservees: number }>
   marquerSauvegarde: () => Promise<void>
@@ -74,7 +99,10 @@ type State = {
 const vide = (id: string): Suivi => ({ id, statut: 'todo', date: '', note: '', maj: '' })
 
 export const useStore = create<State>((set, get) => ({
-  menages: donnees as Tokatrano[],
+  menages: BASE,
+  ajouts: [],
+  localisations: {},
+  derniereLoc: null,
   suivi: {},
   prefs: PREFS_DEFAUT,
   position: null,
@@ -94,18 +122,21 @@ export const useStore = create<State>((set, get) => ({
   oublierAnnulation: () => set({ derniere: null }),
 
   async hydrater() {
-    const [liste, stockees] = await Promise.all([lireSuivi(), lirePref<Partial<Prefs> | null>('prefs', null)])
+    const [liste, stockees, ajouts, locs] = await Promise.all([
+      lireSuivi(), lirePref<Partial<Prefs> | null>('prefs', null), lireAjouts(), lireLocalisationsDb(),
+    ])
     const suivi = Object.fromEntries(liste.map((s) => [s.id, s]))
+    const localisations = Object.fromEntries(locs.map((l) => [l.id, l]))
     const prefs: Prefs = { ...PREFS_DEFAUT, ...stockees }
     // Les données peuvent avoir changé depuis la dernière ouverture : un périmètre disparu ne doit pas laisser l'écran vide.
-    const menages = get().menages
+    const menages = composer(ajouts, localisations)
     if (prefs.fokontany && !fokontanys(menages).some((f) => f.cle === prefs.fokontany)) prefs.fokontany = ''
     if (prefs.segment && !menages.some((m) => cleSegment(m) === prefs.segment)) prefs.segment = ''
     // Premier lancement : on ouvre le segment qui a encore du travail plutôt que les 77 d'un coup.
     if (!stockees) prefs.segment = segmentParDefaut(menages, suivi)
     // Un segment implique son fokontany (les préférences d'une ancienne version n'en avaient pas).
     if (prefs.segment) prefs.fokontany = menages.find((m) => cleSegment(m) === prefs.segment)?.fokontany ?? ''
-    set({ suivi, prefs, pret: true })
+    set({ suivi, prefs, ajouts, localisations, menages, pret: true })
   },
 
   suiviDe: (id) => get().suivi[id] ?? vide(id),
@@ -153,6 +184,26 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async importerFichier(json) {
+    // Un seul bouton d'import : une liste de ménages (renfort) se reconnaît à sa clé `menages`.
+    if (estListeMenages(json)) return get().importerListe(json)
+
+    // Ménages ajoutés et positions d'abord : les statuts qui suivent doivent retrouver leur ménage.
+    const ajoutsSauves = lireAjoutsSauvegarde(json)
+    if (ajoutsSauves.length) {
+      await ecrireAjouts(ajoutsSauves)
+      const parId = new Map(get().ajouts.map((m) => [m.id, m]))
+      for (const m of ajoutsSauves) parId.set(m.id, m)
+      const ajouts = [...parId.values()]
+      set((s) => ({ ajouts, menages: composer(ajouts, s.localisations) }))
+    }
+    const positions = await importerLocalisations(lireLocalisations(json))
+    if (positions.length) {
+      set((s) => {
+        const localisations = { ...s.localisations, ...Object.fromEntries(positions.map((l) => [l.id, l])) }
+        return { localisations, menages: composer(s.ajouts, localisations) }
+      })
+    }
+
     const { valides, ignorees } = lireImportDetail(json)
     const { ecrites, avant } = await importerSuivi(valides)
     const ids = new Set(valides.map((v) => v.id))
@@ -175,7 +226,46 @@ export const useStore = create<State>((set, get) => ({
       ignorees,
       // Conservées quand même : la progression est rattachée au code du ménage, pas à sa présence dans le fichier de données.
       inconnues: [...ids].filter((id) => !connus.has(id)).length,
+      ...(positions.length ? { positions: positions.length } : {}),
     }
+  },
+
+  async importerListe(json) {
+    const { menages: entrants, ignorees } = lireListeMenages(json)
+    await ecrireAjouts(entrants)
+    const parId = new Map(get().ajouts.map((m) => [m.id, m]))
+    const misAJour = entrants.filter((m) => parId.has(m.id)).length
+    for (const m of entrants) parId.set(m.id, m)
+    const ajouts = [...parId.values()]
+    const fokontany = entrants[0]?.fokontany ?? ''
+    set((s) => ({ ajouts, menages: composer(ajouts, s.localisations) }))
+    // On bascule tout de suite sur le fokontany importé : c'est là que l'enquêteur va travailler.
+    if (fokontany) await get().definirPrefs({ fokontany, segment: '' })
+    return { type: 'liste', fokontany, ajoutes: entrants.length - misAJour, misAJour, ignorees }
+  },
+
+  // Dexie d'abord, comme pour les statuts. L'ancienne position est gardée pour pouvoir annuler.
+  async localiser(id, { lat, lon, precision }) {
+    const avant = get().localisations[id] ?? null
+    const l: Localisation = { id, lat, lon, precision, maj: new Date().toISOString() }
+    await ecrireLocalisation(l)
+    set((s) => {
+      const localisations = { ...s.localisations, [id]: l }
+      return { localisations, menages: composer(s.ajouts, localisations), derniereLoc: { id, avant } }
+    })
+  },
+
+  async annulerLocalisation() {
+    const d = get().derniereLoc
+    if (!d) return
+    if (d.avant) await ecrireLocalisation(d.avant)
+    else await supprimerLocalisation(d.id)
+    set((s) => {
+      const localisations = { ...s.localisations }
+      if (d.avant) localisations[d.id] = d.avant
+      else delete localisations[d.id]
+      return { localisations, menages: composer(s.ajouts, localisations), derniereLoc: null }
+    })
   },
 
   async toutEffacer() {

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Suivi } from './types'
+import type { Localisation, Suivi, Tokatrano } from './types'
 import { fusionner } from './lib/merge'
 
 export type Pref = { cle: string; valeur: unknown }
@@ -7,11 +7,20 @@ export type Pref = { cle: string; valeur: unknown }
 export const db = new Dexie('fanisana') as Dexie & {
   suivi: EntityTable<Suivi, 'id'>
   prefs: EntityTable<Pref, 'cle'>
+  ajouts: EntityTable<Tokatrano, 'id'>
+  localisations: EntityTable<Localisation, 'id'>
 }
 
 db.version(1).stores({
   suivi: 'id, statut, maj',
   prefs: 'cle',
+})
+
+// v2 : ménages ajoutés par import de liste (renfort) et positions relevées par l'enquêteur.
+// Tables séparées du suivi, comme le dénombrement : chacune peut être remplacée sans toucher aux autres.
+db.version(2).stores({
+  ajouts: 'id, fokontany',
+  localisations: 'id, maj',
 })
 
 export class QuotaError extends Error {
@@ -67,6 +76,33 @@ export const appliquerPlan = (aEcrire: Suivi[], aSupprimer: string[]) =>
   )
 
 export const effacerSuivi = () => db.suivi.clear()
+
+export const lireAjouts = () => db.ajouts.toArray()
+
+/** Remplace les fiches de même id : réimporter une liste corrigée met à jour sans dupliquer. */
+export const ecrireAjouts = (menages: Tokatrano[]) => ecrire(() => db.ajouts.bulkPut(menages))
+
+export const lireLocalisationsDb = () => db.localisations.toArray()
+
+export const ecrireLocalisation = (l: Localisation) => ecrire(() => db.localisations.put(l))
+
+export const supprimerLocalisation = (id: string) => db.localisations.delete(id)
+
+/** Fusion sur `maj`, comme le suivi : une position plus récente ici n'est jamais écrasée par une sauvegarde. */
+export function importerLocalisations(entrantes: Localisation[]): Promise<Localisation[]> {
+  return ecrire(() =>
+    db.transaction('rw', db.localisations, async () => {
+      const locales = new Map((await db.localisations.toArray()).map((l) => [l.id, l]))
+      const t = (s: string) => (s ? Date.parse(s) : NaN)
+      const aEcrire = entrantes.filter((e) => {
+        const cur = locales.get(e.id)
+        return !cur || Number.isNaN(t(cur.maj)) || t(e.maj) > t(cur.maj)
+      })
+      await db.localisations.bulkPut(aEcrire)
+      return aEcrire
+    }),
+  )
+}
 
 export async function lirePref<T>(cle: string, defaut: T): Promise<T> {
   const p = await db.prefs.get(cle)

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { QuotaError } from '../db'
 import { nomFichier, versCsv, versJson } from '../lib/export'
-import { useStore, type RapportImport } from '../store'
+import { nomFokontany } from '../lib/liste'
+import { useStore, type RapportImport, type RapportListe } from '../store'
 import { enregistrerFichier, TAILLE_MAX_IMPORT } from './fichiers'
 import { enregistrer } from './enregistrer'
 
@@ -9,7 +10,17 @@ const heure = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: '
 
 const pluriel = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`
 
-function resume(r: RapportImport): string {
+function resumeListe(r: RapportListe): string {
+  const morceaux = [
+    r.ajoutes ? pluriel(r.ajoutes, 'ménage ajouté', 'ménages ajoutés') : 'Aucun nouveau ménage',
+  ]
+  if (r.misAJour) morceaux.push(pluriel(r.misAJour, 'déjà présent, mis à jour', 'déjà présents, mis à jour'))
+  if (r.ignorees) morceaux.push(pluriel(r.ignorees, 'ligne en double ou illisible ignorée', 'lignes en double ou illisibles ignorées'))
+  return `${nomFokontany(r.fokontany)} : ${morceaux.join(' · ')}. Sans GPS, ils n'apparaissent pas encore sur la carte : ouvrez-les depuis la liste et enregistrez votre position devant chaque maison.`
+}
+
+function resume(r: RapportImport | RapportListe): string {
+  if ('type' in r) return resumeListe(r)
   const morceaux = [
     r.misesAJour
       ? `${pluriel(r.misesAJour, 'fiche mise à jour', 'fiches mises à jour')}`
@@ -18,6 +29,7 @@ function resume(r: RapportImport): string {
   if (r.inchangees) morceaux.push(`${r.inchangees} déjà à jour ou plus récentes ici`)
   if (r.inconnues) morceaux.push(`${pluriel(r.inconnues, 'sans ménage correspondant (conservée)', 'sans ménage correspondant (conservées)')}`)
   if (r.ignorees) morceaux.push(`${pluriel(r.ignorees, 'entrée illisible ignorée', 'entrées illisibles ignorées')}`)
+  if (r.positions) morceaux.push(pluriel(r.positions, 'position relevée reprise', 'positions relevées reprises'))
   return `${morceaux.join(' · ')}.`
 }
 
@@ -30,6 +42,8 @@ export function ReglagesDonnees() {
   const annulerRestauration = useStore((s) => s.annulerRestauration)
   const toutEffacer = useStore((s) => s.toutEffacer)
   const marquerSauvegarde = useStore((s) => s.marquerSauvegarde)
+  const ajouts = useStore((s) => s.ajouts)
+  const localisations = useStore((s) => s.localisations)
 
   const [message, setMessage] = useState<{ texte: string; alerte: boolean } | null>(null)
   const [confirmer, setConfirmer] = useState(false)
@@ -38,7 +52,11 @@ export function ReglagesDonnees() {
 
   const exporterJson = async () => {
     const fiches = Object.values(suivi).sort((a, b) => a.id.localeCompare(b.id))
-    enregistrerFichier(nomFichier('progression', 'json'), versJson(fiches), 'application/json')
+    enregistrerFichier(
+      nomFichier('progression', 'json'),
+      versJson(fiches, new Date(), { ajouts, localisations: Object.values(localisations) }),
+      'application/json',
+    )
     await enregistrer(marquerSauvegarde)
     setMessage({ texte: 'Sauvegarde téléchargée. Gardez-la en lieu sûr (messagerie, cloud, ordinateur).', alerte: false })
   }
@@ -65,7 +83,7 @@ export function ReglagesDonnees() {
         texte:
           e instanceof QuotaError
             ? "Mémoire du téléphone pleine : l'import n'a pas été enregistré."
-            : 'Format non reconnu : ce fichier ne contient pas de suivi de ménages.',
+            : 'Format non reconnu : ce fichier ne contient ni suivi ni liste de ménages.',
         alerte: true,
       })
     }
@@ -134,11 +152,12 @@ export function ReglagesDonnees() {
         }}
       />
       <button onClick={() => champFichier.current?.click()} className={`${bouton} border-trait`}>
-        Importer une sauvegarde (JSON)
+        Importer une sauvegarde ou une liste de ménages (JSON)
       </button>
       <p className="text-sm text-brume">
         L'import ne remplace jamais une fiche plus récente que celle du fichier : pour chaque ménage, la modification la plus
-        récente gagne. Il peut s'annuler.
+        récente gagne. Il peut s'annuler. Une liste de ménages (renfort dans un autre fokontany) s'ajoute aux données
+        du dénombrement sans les modifier.
       </p>
 
       {message && (

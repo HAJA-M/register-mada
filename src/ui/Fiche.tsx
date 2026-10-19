@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { aUnGps, distanceVers, formatDistance } from '../lib/geo'
+import { aUnGps, distanceVers, formatDistance, qualiteGps } from '../lib/geo'
 import { dansPortee, plusProcheOuvert } from '../lib/liste'
 import { useStore } from '../store'
 import { LIBELLES, STATUTS, type Statut, type Tokatrano } from '../types'
@@ -39,6 +39,70 @@ function Note({ id }: { id: string }) {
         className={`${champ} py-2`}
       />
     </label>
+  )
+}
+
+const heure = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+
+/**
+ * Pour un ménage sans GPS (renfort, fiche incomplète) : l'enquêteur, arrivé devant la maison, y fixe sa propre
+ * position. Le ménage apparaît alors sur la carte, dans « Suivant » et dans l'export.
+ */
+function Localiser({ m }: { m: Tokatrano }) {
+  const loc = useStore((s) => s.localisations[m.id])
+  const position = useStore((s) => s.position)
+  const derniere = useStore((s) => s.derniereLoc)
+  const localiser = useStore((s) => s.localiser)
+  const annulerLocalisation = useStore((s) => s.annulerLocalisation)
+
+  if (aUnGps(m) && !loc) return null
+  const precision = position ? Math.round(position.precision) : null
+  const faible = position != null && qualiteGps(position.precision) === 'faible'
+  const peutAnnuler = derniere?.id === m.id
+
+  const enregistrerIci = async () => {
+    if (!position) return
+    if (await enregistrer(() => localiser(m.id, { lat: position.lat, lon: position.lon, precision: position.precision }))) vibrer(40)
+  }
+
+  return (
+    <div className={`space-y-2 rounded-[10px] border p-3 ${loc ? 'border-trait' : 'border-todo'}`}>
+      <p className="text-sm">
+        {loc ? (
+          <>
+            <span className="block text-xs text-brume">Position relevée par vous</span>
+            {heure.format(new Date(loc.maj))}
+            {loc.precision != null && <span className="tabular-nums"> · ±{Math.round(loc.precision)} m</span>}
+          </>
+        ) : (
+          <>
+            <b className="block">Pas encore localisé</b>
+            <span className="text-brume">Devant la maison, enregistrez votre position : le ménage sera placé sur la carte.</span>
+          </>
+        )}
+      </p>
+      <button
+        disabled={!position}
+        onClick={() => void enregistrerIci()}
+        className={`min-h-12 w-full rounded-[10px] px-4 font-bold disabled:bg-trait disabled:text-brume ${
+          loc ? 'border border-trait' : 'bg-todo text-nuit'
+        }`}
+      >
+        {!position
+          ? 'Activez le GPS pour localiser'
+          : `${loc ? 'Corriger : je suis devant' : 'Je suis devant : enregistrer'}${precision != null ? ` (±${precision} m)` : ''}`}
+      </button>
+      {faible && (
+        <p role="status" className="text-sm text-refus">
+          Précision faible : attendez quelques secondes à découvert avant d'enregistrer.
+        </p>
+      )}
+      {peutAnnuler && (
+        <button onClick={() => void enregistrer(annulerLocalisation)} className="min-h-11 w-full rounded-[10px] border border-craie px-4 font-semibold">
+          Annuler la position enregistrée
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -125,7 +189,7 @@ export function Fiche({ id }: { id: string }) {
           <p className="truncate text-xs text-brume">{m.id}</p>
           <h2 className="text-xl font-bold leading-tight">{m.chef || m.surnom || 'Fiche sans nom'}</h2>
           <p className="text-sm text-brume">
-            {[m.surnom && `« ${m.surnom} »`, m.adresse].filter(Boolean).join(' · ')}
+            {[m.chef && m.surnom && `« ${m.surnom} »`, m.adresse].filter(Boolean).join(' · ')}
           </p>
         </div>
         <button
@@ -140,6 +204,8 @@ export function Fiche({ id }: { id: string }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-3">
+        <Localiser m={m} />
+
         {m.marika && (
           <p className="rounded-[10px] bg-nuit p-3">
             <span className="block text-xs text-brume">Repère</span>

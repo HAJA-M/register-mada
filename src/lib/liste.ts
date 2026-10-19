@@ -94,7 +94,13 @@ export function segments(menages: Tokatrano[]) {
   const vus = new Map<string, { cle: string; label: string; fokontany: string }>()
   for (const m of menages) {
     const cle = cleSegment(m)
-    if (!vus.has(cle)) vus.set(cle, { cle, label: `${m.grappe.split('/').pop()}/${m.segment}`, fokontany: m.fokontany })
+    // Grappe RSU « RSU/0267/08 » → « 08/S01 » ; un ménage ajouté par liste n'a pas de grappe RSU : sa section suffit.
+    if (!vus.has(cle))
+      vus.set(cle, {
+        cle,
+        label: m.grappe.includes('/') ? `${m.grappe.split('/').pop()}/${m.segment}` : m.segment,
+        fokontany: m.fokontany,
+      })
   }
   return [...vus.values()]
 }

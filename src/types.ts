@@ -35,6 +35,15 @@ export type Suivi = {
   maj: string // ISO complet
 }
 
+/** Position relevée par l'enquêteur devant la maison, pour un ménage sans GPS (ou au GPS faux). */
+export type Localisation = {
+  id: string
+  lat: number
+  lon: number
+  precision: number | null // en mètres
+  maj: string // ISO complet
+}
+
 export const estOuvert = (s: Statut) => s === 'todo' || s === 'encours'
 
 export const LIBELLES: Record<Statut, string> = {

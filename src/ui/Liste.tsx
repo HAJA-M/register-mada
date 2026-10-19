@@ -39,7 +39,7 @@ export function Liste({
                 <span className="block truncate text-xs text-brume">
                   {d != null && <b className="font-semibold text-craie">{formatDistance(d)} · </b>}
                   {m.adresse || '—'} · {m.membres || '?'} pers.
-                  {m.lat == null && ' · sans GPS'}
+                  {m.lat == null && ' · à localiser'}
                 </span>
               </span>
             </button>
